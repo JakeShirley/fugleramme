@@ -843,6 +843,10 @@
     "source": "audubon",
     "url": "https://www.audubon.org/art/birds-of-america/california-partridge"
   },
+  "birds/calypte-anna.webp": {
+    "source": "audubon",
+    "url": "https://commons.wikimedia.org/wiki/File:The_Birds_of_America_from_Drawings_Made_in_the_United_States_MET_DP247651.jpg"
+  },
   "birds/canachites-canadensis.webp": {
     "source": "fuertes",
     "url": "https://commons.wikimedia.org/wiki/Category:Birds_of_New_York_(Eaton)#/media/File:Annual_report_(1909)_(14776306752).jpg"
