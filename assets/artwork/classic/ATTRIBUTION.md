@@ -111,3 +111,9 @@ from [Biodiversity Heritage Library scans on Wikimedia Commons](https://commons.
 CC BY 2.0. Manifest key: `jardine`.
 
 **Gordon** - bird studies from the **Gordon Atlas**, drawn at the Cape by **Robert Jacob Gordon** (1743-1795). Scans from the **Rijksmuseum**, Amsterdam (the `RP-T-1914-17` album, acquired 1914), via the Commons category [The Gordon African Collection Birds](https://commons.wikimedia.org/wiki/Category:The_Gordon_African_Collection_Birds). CC0 / public domain. Manifest key: `gordon`.
+
+**Birds and nature** - colour plates from *Birds and nature* (1907), from
+[Smithsonian Institution Libraries / Biodiversity Heritage Library scans](https://archive.org/details/birdsnature51907chic)
+via Internet Archive Book Images and Wikimedia Commons. The artist is not
+identified in the source metadata. Public domain (US publication, 1907);
+Commons lists no known copyright restrictions. Manifest key: `birdsandnature`.
