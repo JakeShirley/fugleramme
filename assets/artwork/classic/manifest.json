@@ -843,6 +843,14 @@
     "source": "audubon",
     "url": "https://www.audubon.org/art/birds-of-america/california-partridge"
   },
+  "birds/calypte-anna-2.webp": {
+    "source": "lesson",
+    "url": "https://commons.wikimedia.org/wiki/File:Calypte_anna_Bevalet.jpg"
+  },
+  "birds/calypte-anna-3.webp": {
+    "source": "lesson",
+    "url": "https://commons.wikimedia.org/wiki/File:Calypte_anna_young.jpg"
+  },
   "birds/calypte-anna.webp": {
     "source": "audubon",
     "url": "https://commons.wikimedia.org/wiki/File:The_Birds_of_America_from_Drawings_Made_in_the_United_States_MET_DP247651.jpg"

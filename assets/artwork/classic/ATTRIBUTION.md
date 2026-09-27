@@ -116,3 +116,5 @@ from [Biodiversity Heritage Library scans on Wikimedia Commons](https://commons.
 CC BY 2.0. Manifest key: `jardine`.
 
 **Gordon** - bird studies from the **Gordon Atlas**, drawn at the Cape by **Robert Jacob Gordon** (1743-1795). Scans from the **Rijksmuseum**, Amsterdam (the `RP-T-1914-17` album, acquired 1914), via the Commons category [The Gordon African Collection Birds](https://commons.wikimedia.org/wiki/Category:The_Gordon_African_Collection_Birds). CC0 / public domain. Manifest key: `gordon`.
+
+**Lesson** - *Histoire naturelle des oiseaux-mouches* (1829) and its supplement in *Histoire naturelle des colibris* (1830) by **René Primevère Lesson**, plates drawn by **Antoine Germain Bévalet**, printed by **Rémond** and engraved by **Coutant**. Scans from the Ernst Mayr Library, Museum of Comparative Zoology, Harvard University, and Smithsonian Libraries via the [Internet Archive](https://archive.org/details/Histoirenaturel00Less); the plates are also in the Commons category [Calypte anna (illustrations)](https://commons.wikimedia.org/wiki/Category:Calypte_anna_(illustrations)). Public domain (PD-Art / PD-old-70). Manifest key: `lesson`.
