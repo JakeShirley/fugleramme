@@ -15,6 +15,10 @@ from fugleramme.api import ApiSource
 from fugleramme.languages import namer
 from fugleramme.names import normalize
 from fugleramme.picks import Picks
+from fugleramme.render.collage import KEY_LIMIT, NO_LIMIT
+from fugleramme.render.page import NEW
+from fugleramme.render.paper import PANEL_PAPER
+from fugleramme.render.plate import effective_margin
 from fugleramme.settings import MARGIN_CEILING, Settings
 
 NOW = datetime.now().astimezone()
@@ -52,7 +56,7 @@ def _draw(images, name: str) -> None:
     )
 
 
-def _ctx(source, images, tmp_path, mode, **overrides):
+def _ctx(source, images, tmp_path, mode, panel=False, **overrides):
     settings = Settings(mode=mode, **overrides)
     return modes.context(
         source,
@@ -62,6 +66,7 @@ def _ctx(source, images, tmp_path, mode, **overrides):
         namer("sci", "", tmp_path),
         (400, 300),
         textured=False,
+        panel=panel,
     )
 
 
@@ -206,6 +211,17 @@ def test_a_margin_under_the_plates_own_does_not_change_its_key(tmp_path, images,
     assert keys[0] != keys[1]
 
 
+def test_a_plate_keeps_to_its_window_and_its_own_floor_on_each_edge(tmp_path, images, source):
+    detections = source(rows=[_row(1, BLACKBIRD, 1)])
+    edges = {"margin_lock": False, "margin_top": MARGIN_CEILING, "margin_right": 0}
+    ctx = _ctx(detections, images, tmp_path, "latest", panel=True, margin=0, **edges)
+    page = np.asarray(modes.render(ctx)).copy()
+    x0, y0, x1, y1 = effective_margin(ctx.margin).window((400, 300))
+    assert (x0, y0, x1, y1) == (24, 75, 376, 276)
+    page[y0:y1, x0:x1] = PANEL_PAPER
+    assert (page == PANEL_PAPER).all()
+
+
 def test_the_key_carries_what_the_page_is_drawn_from(tmp_path, images, source):
     detections = source(rows=[_row(1, BLACKBIRD, 1)])
     base = _ctx(detections, images, tmp_path, "latest")
@@ -226,3 +242,60 @@ def test_a_render_is_cached_until_its_key_moves(tmp_path, images, source):
     ctx = _ctx(detections, images, tmp_path, "latest")
     assert modes.png_bytes(ctx) is modes.png_bytes(ctx)
     assert modes.png_bytes(_ctx(detections, images, tmp_path, "arrival")) != modes.png_bytes(ctx)
+
+
+def test_a_numbered_key_caps_the_page(tmp_path, images, source):
+    detections = source(rows=[_row(1, BLACKBIRD, 1)])
+    limit = lambda **s: _ctx(detections, images, tmp_path, "collage", **s).species_limit
+    assert limit(name_key=True, species_limit=NO_LIMIT) == KEY_LIMIT
+    assert limit(name_key=True, species_limit=12) == 12
+    assert limit(name_key=True, show_names=False, species_limit=NO_LIMIT) == NO_LIMIT
+
+
+def test_the_numbered_key_moves_only_the_collage(tmp_path, images, source):
+    detections = source(rows=[_row(1, BLACKBIRD, 1)])
+    for mode, moves in (("collage", True), ("latest", False)):
+        keys = [
+            modes.state_key(_ctx(detections, images, tmp_path, mode, name_key=on))
+            for on in (False, True)
+        ]
+        assert (keys[0] != keys[1]) is moves
+
+
+def test_the_spotlight_puts_the_latest_bird_on_a_limited_page(tmp_path, images, source):
+    detections = source(rows=[_row(3, TIT, 0), _row(2, BLACKBIRD, 1), _row(1, BLACKBIRD, 2)])
+    for on, expected in ((False, BLACKBIRD), (True, TIT)):
+        ctx = _ctx(detections, images, tmp_path, "collage", species_limit=1, spotlight=on)
+        assert modes._selected(ctx) == [expected]
+
+
+def test_the_spotlight_moves_only_when_a_different_species_calls(tmp_path, images, detector):
+    rows = [_row(2, TIT, 1), _row(1, BLACKBIRD, 2)]
+    url, _httpd = detector(rows=rows)
+    detections = ApiSource(url)
+
+    def key():
+        return modes.state_key(_ctx(detections, images, tmp_path, "collage", spotlight=True))
+
+    before = key()
+    _heard(detections, rows, _row(3, TIT, 0))
+    assert key() == before
+    _heard(detections, rows, _row(4, BLACKBIRD, 0))
+    assert key() != before  # the same two birds, a different one in the middle
+
+
+def test_a_bird_first_heard_today_is_marked_on_every_page(tmp_path, images, source):
+    detections = source(rows=[_row(2, TIT, 1), _row(1, BLACKBIRD, 30)])
+    for mode in modes.MODES:
+        ctx = _ctx(detections, images, tmp_path, mode)
+        label = modes._labeller(ctx)
+        assert label(TIT).endswith(NEW) and not label(BLACKBIRD).endswith(NEW)
+        assert modes.state_key(ctx) != modes.state_key(
+            _ctx(detections, images, tmp_path, mode, show_names=False)
+        )
+
+
+def test_no_mark_without_names(tmp_path, images, source):
+    detections = source(rows=[_row(1, TIT, 1)])
+    ctx = _ctx(detections, images, tmp_path, "collage", show_names=False)
+    assert not modes._labeller(ctx)(TIT).endswith(NEW)

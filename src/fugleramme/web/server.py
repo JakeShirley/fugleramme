@@ -313,6 +313,7 @@ def make_handler(
                 settings,
                 namer(settings.primary_language, settings.secondary_language, store.path.parent),
                 settings.web_size(attached),
+                panel=settings.web_lock and attached is not None,
             )
 
         def _edited(self) -> Settings:
@@ -483,6 +484,11 @@ def make_handler(
             elif action == "update" and status.update_available and not updates.in_container():
                 # The loop installs it: exiting mid-render or mid-push is not safe here.
                 status.update_requested = status.update_available
+            elif action == "reboot" and updates.can_reboot():
+                try:
+                    updates.reboot()
+                except RuntimeError as error:
+                    status.reboot_error = str(error)
             else:
                 changes = admin.form_changes(form)
                 password = changes.get("admin_password")

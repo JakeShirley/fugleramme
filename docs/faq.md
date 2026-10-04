@@ -32,9 +32,13 @@ The panel is most of it. Here are some rough ranges (prices fluctuate a lot at t
 
 [Hardware](hardware.md#full-build-with-birdnet-go) has what I actually use, recommend and why.
 
+## Can I buy a kit?
+
+Not from me - you source the parts yourself, and [Hardware](hardware.md) lists them. Teddy Warner sells [kits](https://theodore.net/store/) for [AvianVisitors](https://theodore.net/projects/AvianVisitors/), which uses the same panel. They're made for his frame, so getting fugleramme running on one might require some tinkering.
+
 ## Will it work where I live?
 
-BirdNET works basically everywhere. The artwork is the limiting factor. Northern/Central Europe is covered the best right now, but wider support is in the works. See [Species coverage](species.md).
+BirdNET works basically everywhere. The artwork is the limiting factor. Coverage is best across Europe and northern Asia, good in North America, and thinner in the tropics and the southern hemisphere thus far - however, it's quickly growing! Pick your location in [Species coverage](species.md) to see which of your local birds are supported.
 
 If your local regulars never show up, open a [Missing bird](https://github.com/arnegiacomo/fugleramme/issues/new/choose) issue - that is how the list grows. Better still, [cut one yourself](adding-artwork.md) and open a PR.
 
@@ -42,7 +46,7 @@ If your local regulars never show up, open a [Missing bird](https://github.com/a
 
 Three possibilities, in the order worth checking:
 
-- **There is no artwork for it.** The admin page greys the species out with "no art", and the log names them. See [Adding artwork](adding-artwork.md).
+- **There is no artwork for it.** The admin page greys the species out with "no art", and the Detector tab counts all birds your station has heard without art. See [Adding artwork](adding-artwork.md).
 
   ```bash
   journalctl -u fugleramme-frame | grep "No artwork"

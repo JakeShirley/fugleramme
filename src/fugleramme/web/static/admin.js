@@ -3,9 +3,18 @@ const cfg = JSON.parse(document.getElementById("config").textContent);
 
 // A loopback detector is only loopback from the Pi, so a remote browser follows
 // this page's own host on its port; anything else is linked as configured.
-document.getElementById("birdnet").href = cfg.birdnetPort
-  ? location.protocol + "//" + location.hostname + ":" + cfg.birdnetPort + "/"
+const birdnet = cfg.birdnetPort
+  ? location.protocol + "//" + location.hostname + ":" + cfg.birdnetPort
   : cfg.birdnetUrl;
+document.getElementById("birdnet").href = birdnet + "/";
+
+// Not queryType=species: BirdNET-Go shows only today's for that.
+function linkSpecies() {
+  for (const a of document.querySelectorAll("#species a[data-species]")) {
+    a.href = birdnet + "/ui/detections?search=" + encodeURIComponent(a.dataset.species);
+  }
+}
+linkSpecies();
 
 // Every button posts and redirects, so a save reloads: the tab and the scroll
 // position have to be carried across by hand.
@@ -27,13 +36,30 @@ const state = document.getElementById("state");
 sessionStorage.setItem("version", cfg.version);
 if (state && was && was !== cfg.version) state.textContent = "updated to v" + cfg.version;
 
+// Plain http has no clipboard API, so copy through a selected scratch textarea.
+for (const button of document.querySelectorAll("button.copy")) {
+  button.addEventListener("click", () => {
+    const scratch = document.createElement("textarea");
+    scratch.value = button.dataset.copy;
+    document.body.append(scratch);
+    scratch.select();
+    document.execCommand("copy");
+    scratch.remove();
+    button.textContent = "Copied";
+    setTimeout(() => { button.textContent = "Copy"; }, 1500);
+  });
+}
+
 const tabs = document.querySelectorAll("nav.tabs button");
+// Display and Frame share one form and one preview.
+const settings = document.getElementById("settings");
 function showTab(name) {
   for (const tab of tabs) {
     const on = tab.dataset.tab === name;
     tab.setAttribute("aria-selected", on);
     document.getElementById("tab-" + tab.dataset.tab).hidden = !on;
   }
+  settings.hidden = !settings.contains(document.getElementById("tab-" + name));
   localStorage.setItem("tab", name);
 }
 for (const tab of tabs) tab.addEventListener("click", () => showTab(tab.dataset.tab));
@@ -199,6 +225,7 @@ const caption = document.querySelector(".rendering");
 const captionHTML = caption.innerHTML;
 const form = document.querySelector("form.settings");
 let shown = null, seq = 0, timer = null;
+let page = null;  // the kiosk's token: new birds move the preview too
 const queueRender = () => {
   clearTimeout(timer);  // debounced: a render is expensive on the Pi
   timer = setTimeout(loadPreview, 500);
@@ -227,7 +254,8 @@ function loadPreview() {
     if (id !== seq) return;
     caption.textContent = "Preview unavailable";
   };
-  next.src = "/preview.png?" + query;
+  // The token busts the browser's in-page image cache, which ignores no-cache.
+  next.src = "/preview.png?" + query + (page ? "&page=" + page : "");
   loadSpecies(query, id);
 }
 
@@ -240,20 +268,57 @@ async function loadSpecies(query, id) {
     if (id !== seq) return;
     document.getElementById("count").textContent = body.count;
     document.getElementById("species").innerHTML = body.html;
+    linkSpecies();
   } catch (e) {}  // the preview alone is worth showing
+}
+
+const margin = form.querySelector("input[name=margin]");
+const one = document.getElementById("margin-one");
+const edgeLock = form.querySelector("input[name=margin_lock]");
+const edgeBox = document.getElementById("margin-edges");
+const edges = edgeBox ? [...edgeBox.querySelectorAll("input")] : [];  // the glass's top, right, bottom, left
+const SIDES = ["Top", "Right", "Bottom", "Left"];
+const unlocked = () => Boolean(edgeLock && !edgeLock.checked);
+const turns = () => form.rotation.value / 90;  // counter-clockwise: the glass's left comes to the top
+
+function hungMargins() {
+  if (!unlocked()) return SIDES.map(() => Number(margin.value));
+  return SIDES.map((_, i) => Number(edges[(i - turns() + 4) % 4].value));
+}
+
+function reveal(el, on) {
+  el.hidden = !on;
+  el.querySelectorAll("input").forEach((c) => { c.disabled = !on; });
+}
+function syncMargin() {
+  if (!edgeLock) return;  // no panel, no edges
+  const open = unlocked();
+  reveal(edgeBox, open);
+  // Unlocked, only a web view off the panel uses the one margin.
+  reveal(one, !open || !lock.checked);
+  one.querySelector(".caption").textContent = open ? "Web view" : "All edges";
+  edges.forEach((edge, i) => {
+    const side = (i + turns()) % 4;
+    edge.closest("label").style.order = side;
+    edge.closest("label").querySelector(".caption").textContent = SIDES[side];
+  });
 }
 
 // Shade the mat band on the page already on screen, so the margin can be judged
 // before the render catches up.
-const margin = form.querySelector("input[name=margin]");
-const readout = document.getElementById("margin-value");
-margin.addEventListener("input", () => {
-  readout.textContent = margin.value + "%";
+form.addEventListener("input", (e) => {
+  if (e.target.type !== "range") return;
+  e.target.closest("label").querySelector("small").textContent = e.target.value + "%";
+  // Locked, the edges follow, so unlocking starts them at the one margin.
+  if (e.target === margin && !unlocked()) edges.forEach((edge) => { edge.value = margin.value; });
   const box = preview.getBoundingClientRect();
-  mat.style.borderWidth = Math.min(box.width, box.height) * margin.value / 100 + "px";
+  const short = Math.min(box.width, box.height);
+  mat.style.borderWidth = hungMargins().map((m) => short * m / 100 + "px").join(" ");
   mat.hidden = preview.classList.contains("loading");  // no page on screen to shade
 });
-margin.addEventListener("change", queueRender);  // on release, or a keyboard step
+form.addEventListener("change", (e) => {  // on release, or a keyboard step
+  if (e.target.type === "range") queueRender();
+});
 
 // Settings the chosen mode ignores go dim and stop being submitted, so the
 // saved value survives a trip through a mode that has no use for it.
@@ -265,9 +330,12 @@ function dim(el, on) {
   el.querySelectorAll("select, input").forEach((c) => { c.disabled = !on; });
   el.classList.toggle("off", !on);
 }
-function syncMode() {
+const windowed = () => {
   const mode = form.querySelector("input[name=mode]:checked");
-  const on = !mode || cfg.windowedModes.includes(mode.value);
+  return !mode || cfg.windowedModes.includes(mode.value);
+};
+function syncMode() {
+  const on = windowed();
   dim(lookback, on);
   dim(limit, on);
   dim(layout, on);
@@ -283,8 +351,14 @@ const shape = document.getElementById("web-shape");
 const syncShape = () => dim(shape, !lock.checked);
 // With names off there is no label to set a language, typeface or size for.
 const showNames = form.querySelector("input[name=show_names]");
+const nameKey = form.querySelector("input[name=name_key]");
+const keyCap = document.getElementById("key-cap");
 const syncNames = () => {
   document.querySelectorAll("#names .sub").forEach((l) => dim(l, showNames.checked));
+  dim(document.getElementById("name-key"), showNames.checked && windowed());  // collage only
+  const all = form.querySelector("input[name=limit_mode]:checked")?.value === "all";
+  const over = all || Number(form.species_limit.value) > cfg.keyLimit;
+  keyCap.hidden = !(nameKey.checked && !nameKey.disabled && over);
 };
 // The size each Resolution renders at, as settings.web_size works it out from the form.
 const sizeOf = (height) => {
@@ -306,7 +380,8 @@ form.addEventListener("input", (e) => {
   syncShape();
   syncNames();
   syncSizes();
-  if (e.target === margin) return clearTimeout(timer);  // a drag renders on release only
+  syncMargin();
+  if (e.target.type === "range") return clearTimeout(timer);  // a drag renders on release only
   queueRender();
 }, true);
 
@@ -314,6 +389,7 @@ syncMode();
 syncShape();
 syncNames();
 syncSizes();
+syncMargin();
 
 // Save stays disabled until a form differs from what the server served. An
 // untouched password placeholder serializes the same both times, so it needs no
@@ -338,5 +414,22 @@ window.addEventListener("beforeunload", (e) => {
   e.returnValue = "";
 });
 
+document.querySelector("form.reboot")?.addEventListener("submit", (e) => {
+  if (!confirm("Are you sure you want to reboot?")) e.preventDefault();
+});
+
 loadPreview();
+(async function follow() {
+  try {
+    const state = await (await fetch("/state", {cache: "no-store"})).json();
+    const moved = page !== null && state.token !== page;
+    page = state.token;
+    if (!moved) return;
+    shown = null;  // the same form, a different page
+    loadPreview();
+  } catch (e) {  // a missed poll is caught by the next
+  } finally {
+    setTimeout(follow, 5000);
+  }
+})();
 if (scrolled !== null) window.scrollTo(0, Number(scrolled));

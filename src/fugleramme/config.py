@@ -52,6 +52,9 @@ DOCS_URL = "https://arnegiacomo.dev/fugleramme/"
 REPO_HTTPS_URL = "https://github.com/arnegiacomo/fugleramme.git"
 RELEASES_API = "https://api.github.com/repos/arnegiacomo/fugleramme/releases/latest"
 
+# Where the admin sends a list of birds without art.
+NEW_ISSUE_URL = "https://github.com/arnegiacomo/fugleramme/issues/new"
+
 # Repo root: src/fugleramme/config.py -> repo root is three parents up.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

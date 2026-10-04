@@ -2,12 +2,8 @@
 
 ## Find what is missing
 
-See [Species coverage](species.md). The admin page marks a bird the current style cannot draw with "no art". The
-frame logs the same list whenever re-renders:
-
-```bash
-journalctl -u fugleramme-frame | grep "No artwork"
-```
+The admin page's Detector tab counts every bird your station has heard without art, and opens a Missing bird issue
+with the list pre-filled or copies it. If you like logs: `journalctl -u fugleramme-frame | grep "No artwork"` lists the ones it skipped recently.
 
 ## Source an image
 
@@ -18,11 +14,11 @@ Choose public-domain or openly licensed artwork whose terms are compatible with
 the style. Keep the artist or work name, licence, and link to the original image
 for its manifest and `ATTRIBUTION.md` entries.
 
+Grab the highest resolution version of the scan you can find. Once cut out, the bird should be at least 600 px tall or wide, otherwise it'll look ugly when the frame shows it in a single-bird mode.
+
 ## Prepare the image
 
-(WIP)
-
-Krita is my preferred tool of choice here (its free and easy to use)
+Krita is my preferred manual tool of choice here (it's free and easy to use)
 
 ### Cut out the bird
 
@@ -33,9 +29,17 @@ the background.
 
 Where a branch or stem (or other object) runs out of the cut, either fade it into the paper or cut it round so that it looks natural. A flat cut can be jarring.
 
+You don't have to cut a single bird free. A pair on one branch, or the whole plate with its plants and ground, is welcome - the [bird box](#box-the-bird) keeps the bird itself at the right size.
+
+### Match the colour
+
+Old scans are often faded, yellowed or washed out. If your bird looks washed out next to the birds already in the set, raise the saturation or contrast so it doesn't get overshadowed. Every bird should look like they're printed with the same strength.
+
 ### Add the halo
 
 The ring of paper around the bird helps us blend it to the page. The frame retones it to the sheet's own colour and feathers its edge, so the join disappears instead of reading as a cut-out pasted on. It also allows for less precise cutouts, backgrounds between legs or behind feathers, and gives some natural spacing.
+
+Scan-paper left inside the outline, like between the legs or under the tail, has to match the halo's colour. Either cut it out, or re-tone the paper and the halo to each other.
 
 Use **Image > Flatten Image** first.
 
@@ -66,7 +70,7 @@ artist/source keys are searched interactively. It uses `fzf` if available. Attri
 Export from your editor in whatever format suits you and the tool re-encodes the asset as WebP.
 Transparency is kept, and the file becomes about a sixth the size of the same image as PNG (keep repo and container image smaller).
 
-PNG are still supported. Drop one into your own `custom/` folder and the frame picks it up. WebP is only a rule for artwork commited to the repo.
+PNG are still supported. Drop one into your own `custom/` folder and the frame picks it up. WebP is only a rule for artwork committed to the repo.
 
 It supports dry-running:
 
@@ -93,7 +97,7 @@ This can be performed on many at the time:
 # one plate, by path or by filename
 uv run python tools/bird_box.py assets/artwork/classic/birds/strix-aluco.webp
 
-# the ones with no boudning box yet
+# the ones with no bounding box yet
 uv run python tools/bird_box.py --missing
 
 # everything added or changed but not yet committed
@@ -121,6 +125,13 @@ uv run python tools/preview_plates.py /tmp/preview assets/artwork/classic/birds/
 ```
 
 Creates `web.png` and `panel.png` in the target folder. (Also automatically generated on PRs)
+
+## Open a PR
+
+Happy with the bird and want to share it with others? Open a PR. See [Contributing](https://github.com/arnegiacomo/fugleramme/blob/main/CONTRIBUTING.md#artwork) for what to include. (Never opened a PR before? [First Contributions](https://github.com/firstcontributions/first-contributions) walks you through it)
+
+> [!WARNING]
+> Working on your frame's own Pi? That's fine, but open the PR before the next update - updating resets `manifest.json` and `geometry.json`.
 
 ## Tips
 

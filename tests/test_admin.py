@@ -58,6 +58,13 @@ def test_the_page_still_fills_every_slot_with_the_detector_gone(tmp_path, source
     assert "detector unreachable" in page
 
 
+def test_the_detector_tab_counts_every_bird_heard_without_art(tmp_path, source):
+    heard = source(count=40, seed=0).species_since(0)
+    page = _page(tmp_path, source(count=40, seed=0))  # no style folder: nothing has art
+    assert f'<dd class="missing">{len(heard)} birds <button' in page
+    assert page.count(" detection", page.index('data-copy="')) >= len(heard)
+
+
 def test_every_asset_the_page_links_is_one_the_server_serves(tmp_path, source):
     linked = set(re.findall(r'(?:href|src)="(/[^"?]*)', _page(tmp_path, source())))
     assert linked == {"/", "/admin.css", "/admin.js"}
@@ -79,11 +86,40 @@ def test_a_species_with_no_artwork_is_marked_rather_than_dropped(tmp_path):
     assert admin.species_html([], name_of) == '<li class="empty">none yet</li>'
 
 
+def test_a_bird_without_art_is_a_line_the_issue_form_takes():
+    text = admin.missing_text([("Sturnus unicolor", 1204), ("Pica pica", 1)])
+    assert text.splitlines() == [
+        "Sturnus unicolor (Spotless Starling) - 1204 detections",
+        "Pica pica (Eurasian Magpie) - 1 detection",
+    ]
+    assert admin.missing_text([("Nonexistus birdus", 3)]) == "Nonexistus birdus - 3 detections"
+
+
+def test_the_issue_carries_the_list_while_github_takes_it():
+    short = admin.missing_row([("Sturnus unicolor", 1204)])
+    assert short.startswith("1 bird <button") and "species=Sturnus+unicolor" in short
+
+    long = admin.missing_row([(f"Sturnus unicolor{i}", 1204) for i in range(300)])
+    assert "species=" not in long
+    assert long.count(" detections") == 300  # Copy always has the whole list
+
+
+def test_a_station_with_art_for_every_bird_says_so():
+    assert admin.missing_row([]) == "none"
+
+
 def test_a_plate_with_a_citation_links_to_it(tmp_path):
     name_of = namer("sci", "", tmp_path)
     linked = admin.species_html([("Pica pica", "gould", "https://example.org/a")], name_of)
     assert '<a href="https://example.org/a" target="_blank" rel="noopener">Gould</a>' in linked
-    assert "<a " not in admin.species_html([("Pica pica", "gould", "")], name_of)
+    assert "href" not in admin.species_html([("Pica pica", "gould", "")], name_of)
+
+
+def test_every_species_name_carries_its_scientific_name_for_the_birdnet_link(tmp_path):
+    name_of = namer("sci", "", tmp_path)
+    html = admin.species_html([("Pica pica", "gould", ""), ("Corvus cornix", None, "")], name_of)
+    assert html.count('data-species="') == 2
+    assert 'data-species="Corvus cornix"' in html
 
 
 def test_the_update_row_offers_the_install_only_once_a_release_is_known():
@@ -225,8 +261,18 @@ def test_the_collage_fields_render_and_a_plate_mode_save_leaves_the_layout_alone
     # admin.js disables the collage-only fields outside the collage mode, so a
     # plate-mode post carries no layout - and a field that is absent keeps its value.
     store = SettingsStore(tmp_path / "s.json")
-    store.update(layout="voids")
-    assert store.update(**admin.form_changes({"mode": ["latest"]})).layout == "voids"
+    store.update(layout="voids", spotlight=True)
+    saved = store.update(**admin.form_changes({"mode": ["latest"]}))
+    assert saved.layout == "voids" and saved.spotlight
+
+
+def test_the_spotlight_box_saves_both_ways(tmp_path, source):
+    page = _page(tmp_path, source())
+    assert 'name="spotlight"' in page and "spotlight" in _declared(page)
+    store = SettingsStore(tmp_path / "s.json")
+    on = {admin.CHECKBOXES: ["spotlight"], "spotlight": ["on"]}
+    assert store.update(**admin.form_changes(on)).spotlight
+    assert not store.update(**admin.form_changes({admin.CHECKBOXES: ["spotlight"]})).spotlight
 
 
 def _declared(html: str) -> list[str]:
@@ -267,6 +313,30 @@ def test_with_no_panel_the_lock_is_off_and_undeclared(tmp_path, source):
     assert not any("web_lock" in value.split() for value in _declared(page))
     assert _config(page)["panel"] is None  # the preview box takes the web view's shape
     assert _config(page)["webHeights"]["4K"] == 2160  # the Resolution labels follow the form
+
+
+def test_every_tab_has_the_pane_admin_js_shows(tmp_path, source):
+    page = _page(tmp_path, source())
+    for tab in re.findall(r'data-tab="([^"]+)"', page):
+        assert f'id="tab-{tab}"' in page
+
+
+def test_the_margin_offers_each_edge_only_with_a_panel(tmp_path, source):
+    unlocked = {"margin": 6, "margin_lock": False, "margin_top": 12}
+    page = _page(tmp_path, source(), **unlocked)
+    assert "margin_lock" in _declared(page) and 'name="margin_lock">' in page
+    assert 'name="margin_top" min="0" max="25" step="1" value="12"' in page
+    assert 'name="margin_left" min="0" max="25" step="1" value="6"' in page
+    bare = _page(tmp_path, source(), detected=False, **unlocked)
+    assert "margin_lock" not in bare and "margin_top" not in bare
+    assert 'name="margin" min="0"' in bare
+
+
+def test_unticking_the_margin_lock_is_a_change(tmp_path):
+    store = SettingsStore(tmp_path / "s.json")
+    post = {admin.CHECKBOXES: ["show_names margin_lock"], "margin_top": ["10"]}
+    saved = store.update(**admin.form_changes(post))
+    assert not saved.margin_lock and saved.glass_margins()[0] == 10
 
 
 @pytest.mark.parametrize(

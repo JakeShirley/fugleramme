@@ -41,6 +41,12 @@
   .birdbox div { position:absolute; border:1.5px dashed var(--bad); }
   .birdbox b { position:absolute; top:-16px; left:0; font-size:10px; font-weight:700; letter-spacing:.06em; color:var(--bad); text-shadow:0 0 3px #000; }
   .hide-box .birdbox { display:none; }
+  .pens { position:absolute; inset:0; pointer-events:none; z-index:3; }
+  .pens div { position:absolute; border:2px solid #ff3b8d; background:#ff3b8d1f; }
+  .pens b { position:absolute; top:-2px; left:-2px; transform:translateY(-100%); max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:700; color:#fff; background:#ff3b8d; padding:0 5px; border-radius:3px 3px 0 0; }
+  .pens input { position:absolute; top:100%; left:-2px; margin-top:4px; width:320px; pointer-events:auto; font:inherit; font-size:12px; color:var(--ink); background:var(--panel); border:2px solid #ff3b8d; border-radius:4px; padding:4px 6px; }
+  .pens input.above { top:auto; bottom:100%; margin:0 0 22px; }
+  .pens input.right { left:auto; right:-2px; }
   .controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0; }
   .controls label { color:var(--dim); display:flex; align-items:center; gap:6px; }
   .verdict { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; margin-top:6px; }
@@ -81,6 +87,7 @@
       <img class="l-scan" id="i-scan" alt="scan crop"><img class="l-plate" id="i-plate" alt="plate on paper"><img class="l-flags" id="i-flags" alt="suspect pixels"><canvas class="l-diff" id="i-diff"></canvas><img class="l-cutout" id="i-cutout" alt="the cut-out itself">
       <div class="marks" id="marks"></div>
       <div class="birdbox" id="birdbox"></div>
+      <div class="pens" id="pens"></div>
     </div>
     <div class="controls">
       <button data-key=" " id="play" class="on"><span class="lab">Toggle &#9208;</span></button>
@@ -97,7 +104,8 @@
     <div class="verdict">
       <button data-key="p" class="ok" id="pass"><span class="lab">Pass</span></button>
       <button data-key="f" class="bad" id="fail"><span class="lab">Needs work</span></button>
-      <textarea id="note" placeholder="What is wrong, and where. Saved in this browser."></textarea>
+      <button data-key="u" id="undo"><span class="lab">Undo mark</span></button>
+      <textarea id="note" placeholder="What is wrong, and where. Drag on the plate to mark a spot. Saved in this browser."></textarea>
     </div>
     <div class="facts" id="facts"></div>
   </section>
@@ -239,6 +247,7 @@ function show(i) {
   zooms.append(zoomBox("Loupe - hover the plate", "loupe"));
   b.zooms.forEach((z, n) => zooms.append(zoomBox(String(n + 1))));
   layout();
+  pens();
   $("note").value = saved.note || "";
   $("pass").classList.toggle("on", saved.verdict === "pass"); $("fail").classList.toggle("on", saved.verdict === "fail");
   strip();
@@ -258,11 +267,65 @@ function strip() {
   const cur = $("strip").querySelector(".cur");
   if (cur) $("strip").scrollLeft = cur.offsetLeft - ($("strip").clientWidth - cur.offsetWidth) / 2;
 }
+// Marks are boxes in review px (the img/<id>/ layers' own pixels), lettered in the order drawn,
+// so a note can say "A: tail cut" and whoever fixes it can crop scan.png and plate.png there.
+// A mark's comment rides as its fifth element, asked for as soon as the box is drawn.
+const letter = n => String.fromCharCode(65 + n);
+const esc = t => t.replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
+function pens(live, asking) {
+  const b = BIRDS[at], marks = [...(store.get(b.id).marks || []), ...(live ? [live] : [])];
+  // the stage clips, so a box near its bottom or right edge gets the field above it or right-aligned
+  const side = m => `${m[3] / b.h > 0.85 ? "above " : ""}${m[0] / b.w > 0.6 ? "right" : ""}`;
+  $("pens").innerHTML = marks.map((m, n) => `<div style="left:${m[0] / b.w * 100}%;top:${m[1] / b.h * 100}%;width:${(m[2] - m[0]) / b.w * 100}%;height:${(m[3] - m[1]) / b.h * 100}%"><b>${letter(n)}${m[4] ? ": " + esc(m[4]) : ""}</b>${n === asking ? `<input id="markNote" class="${side(m)}" placeholder="What is wrong at ${letter(n)}? Enter saves, Esc skips">` : ""}</div>`).join("");
+  if (asking === undefined) return;
+  const input = $("markNote");
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    const text = input.value.trim(), s = store.get(b.id);
+    if (text) {   // a commented mark is a finding, so the bird needs work
+      s.marks = s.marks.map((m, n) => n === asking ? [...m.slice(0, 4), text] : m);
+      s.verdict = "fail"; store.set(b.id, s);
+      $("pass").classList.remove("on"); $("fail").classList.add("on");
+    }
+    pens();
+  };
+  input.addEventListener("mousedown", e => e.stopPropagation());
+  input.addEventListener("keydown", e => {
+    e.stopPropagation();   // typing here is not a shortcut
+    if (e.key === "Escape") input.value = "";
+    if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); commit(); }
+  });
+  input.addEventListener("blur", commit);
+  input.focus();
+}
+function stagePx(e) {
+  const b = BIRDS[at], r = $("stage").getBoundingClientRect();
+  const clamp = (v, hi) => Math.round(Math.min(Math.max(v, 0), hi));
+  return [clamp((e.clientX - r.left) / r.width * b.w, b.w), clamp((e.clientY - r.top) / r.height * b.h, b.h)];
+}
+let drag = null;
+const boxOf = ([x0, y0], [x1, y1]) => [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)];
+$("stage").addEventListener("mousedown", e => { if (e.button === 0) { drag = stagePx(e); e.preventDefault(); } });
+addEventListener("mouseup", e => {
+  if (!drag) return;
+  const box = boxOf(drag, stagePx(e)); drag = null;
+  if (box[2] - box[0] < 4 || box[3] - box[1] < 4) { pens(); return; }   // a click, not a box
+  const b = BIRDS[at], s = store.get(b.id);
+  s.marks = [...(s.marks || []), box];
+  store.set(b.id, s); pens(null, s.marks.length - 1);
+});
+function undoMark() {
+  const b = BIRDS[at], s = store.get(b.id);
+  s.marks = (s.marks || []).slice(0, -1); store.set(b.id, s); pens();
+}
 function verdict(v) {
   const b = BIRDS[at], saved = store.get(b.id);
   saved.verdict = saved.verdict === v ? "" : v; store.set(b.id, saved); show(at);
 }
 $("stage").addEventListener("mousemove", e => {
+  if (drag) pens(boxOf(drag, stagePx(e)));
   const b = BIRDS[at], r = $("stage").getBoundingClientRect();
   loupe = { x: (e.clientX - r.left) / r.width * b.w - 100, y: (e.clientY - r.top) / r.height * b.h - 75 };
   place($("zooms").firstChild, loupe.x, loupe.y, 200);
@@ -271,7 +334,10 @@ $("speed").oninput = () => play(playing);
 $("showmarks").onchange = e => document.body.classList.toggle("hide-marks", !e.target.checked);
 function toggleBox() { document.body.classList.toggle("hide-box"); }
 function copyNotes() {
-  const lines = BIRDS.map(b => { const s = store.get(b.id); return `${s.verdict === "pass" ? "PASS" : s.verdict === "fail" ? "NEEDS WORK" : "not reviewed"} | ${b.file} (PR #${b.pr})${s.note ? " | " + s.note.replace(/\s+/g, " ") : ""}`; });
+  const lines = BIRDS.map(b => {
+    const s = store.get(b.id), marks = (s.marks || []).map((m, n) => `${letter(n)} [${m.slice(0, 4).join(", ")}]${m[4] ? ` ${m[4]}` : ""}`).join("; ");
+    return `${s.verdict === "pass" ? "PASS" : s.verdict === "fail" ? "NEEDS WORK" : "not reviewed"} | ${b.file} (PR #${b.pr})${s.note ? " | " + s.note.replace(/\s+/g, " ") : ""}${marks ? ` | marks in review px (${b.id}, ${b.w}x${b.h}): ${marks}` : ""}`;
+  });
   const lab = $("copy").querySelector(".lab");
   navigator.clipboard.writeText(lines.join("\n")).then(() => lab.textContent = "Copied", () => prompt("Copy these notes:", lines.join("\n")));
   setTimeout(() => lab.textContent = "Copy review notes", 1500);
@@ -285,7 +351,8 @@ const keys = {
   1: () => { play(false); setMode("scan"); }, 2: () => { play(false); setMode("plate"); },
   3: () => { play(false); setMode("flags"); }, 4: () => { play(false); setMode("diff"); },
   5: () => { play(false); setMode("cutout"); },
-  b: toggleBox, c: copyNotes, p: () => verdict("pass"), f: () => verdict("fail"),
+  b: toggleBox, c: copyNotes, u: undoMark, p: () => verdict("pass"), f: () => verdict("fail"),
+  Enter: () => { if (store.get(BIRDS[at].id).verdict !== "pass") verdict("pass"); },   // sets, never toggles off
 };
 for (const button of document.querySelectorAll("[data-key]")) {
   const key = button.dataset.key;

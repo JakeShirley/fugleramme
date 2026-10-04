@@ -14,7 +14,7 @@ Covers `names.py`, `picks.py`, `assets/artwork/` and the curation tooling.
 
 ## Shipped plates
 
-Curation runs on a workstation and is not part of this repo - the frame does not depend on it, and plates are re-scrapeable. What it produces still has to satisfy these:
+Plates are cut on a workstation with `tools/platereview/` (the `plate-review` skill) and added with `tools/add_bird.py`; the frame depends on neither. What they produce has to satisfy these:
 
 - Prefer public-domain plates with hand-drawn birds on paper; sources must also be practical to curate reliably. Scenery a bird sits in is welcome, and cutting a bird off its perch looks amputated - but scenery several times the bird's own span is not, because the packer reserves all of it and only the bird draws. The bird box is what makes that measurable.
 - Plates are capped at 1200 pixels on their longest side and written by `tools/add_bird.py`'s `write_plate`, the one place the encoding is decided. Premultiply alpha when resampling cut-outs, or a soft edge picks up whatever colour sat under the transparency - `render.paper` draws every pixel over alpha 24, so it prints as a dotted ring round the bird. `Image.resize` premultiplies RGBA itself, so `_resize` does it once, on float planes; `tests/test_add_bird.py` holds that edge to the colour it came in with.

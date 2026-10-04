@@ -12,15 +12,15 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from string import Template
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from .. import __version__, modes, updates
 from ..api import probe
-from ..config import BIRDNET_PORT, DOCS_URL, WEB_ASPECTS, WEB_HEIGHTS
+from ..config import BIRDNET_PORT, DOCS_URL, NEW_ISSUE_URL, WEB_ASPECTS, WEB_HEIGHTS
 from ..languages import NONE, Namer, catalog, catalog_failure, ordered
 from ..modes import MODES
-from ..names import available_styles, image_for, origin_of, source_of
-from ..render.collage import NO_LIMIT, RANKINGS
+from ..names import available_styles, image_for, normalize, origin_of, source_of
+from ..render.collage import KEY_LIMIT, NO_LIMIT, RANKINGS
 from ..render.fonts import FONTS, LABEL_SIZES
 from ..render.packing import LAYOUTS
 from ..settings import (
@@ -36,6 +36,7 @@ from ..settings import (
 )
 from ..source import NEEDS_PASSWORD, Unavailable
 from ..status import Status
+from ..taxa import common_of
 from . import LOGIN, LOGOUT, STATIC_DIR, hostinfo
 
 CHECKBOXES = "checkboxes"  # hidden field naming the checkboxes a form carries
@@ -46,6 +47,9 @@ PASSWORD_SET = "\u2022" * 8
 _LOOPBACK = ("127.0.0.1", "localhost", "::1", "0.0.0.0")
 
 _ASPECT = {0: "(landscape)", 90: "(portrait)"}
+
+ISSUE_TEMPLATE = "artwork_request.yml"
+MAX_URL = 8000  # GitHub refuses longer; past it the form opens empty
 
 # Style and plate names that don't title-case into something readable.
 _NAMES = {
@@ -85,6 +89,46 @@ def subjects(ctx: modes.Context) -> list[tuple[str, str | None, str]]:
         # Unlisted (a hand-filled style keeps no manifest): name the style itself.
         rows.append((name, source_of(pick) or ctx.style, origin_of(pick)))
     return rows
+
+
+def missing(ctx: modes.Context) -> list[tuple[str, int]]:
+    """Every species the station has ever heard that this style cannot draw,
+    with its detection count, most heard first."""
+    keys = ctx.drawable()
+    return [(name, n) for name, n in ctx.source.species_since(0) if normalize(name) not in keys]
+
+
+def missing_text(rows: list[tuple[str, int]]) -> str:
+    """One line per species, as the Missing bird issue's Species field takes them."""
+    lines = []
+    for name, count in rows:
+        common = common_of(name)
+        named = f"{name} ({common})" if common else name
+        lines.append(f"{named} - {count} detection{'' if count == 1 else 's'}")
+    return "\n".join(lines)
+
+
+def request_url(species: str = "") -> str:
+    """A new Missing bird issue, its Species field holding `species`."""
+    query = {"template": ISSUE_TEMPLATE} | ({"species": species} if species else {})
+    return f"{NEW_ISSUE_URL}?{urlencode(query)}"
+
+
+MISSING = "Birds your station has heard (all time) that have no artwork yet"
+
+
+def missing_row(rows: list[tuple[str, int]]) -> str:
+    """The Without art row: a count, a copy of the list, and the issue with it filled in."""
+    if not rows:
+        return "none"
+    text = missing_text(rows)
+    filled = request_url(text)
+    url = filled if len(filled) <= MAX_URL else request_url()
+    return (
+        f"{len(rows)} bird{'' if len(rows) == 1 else 's'} "
+        f'<button type="button" class="copy" data-copy="{html.escape(text)}">Copy</button> · '
+        f'<a href="{html.escape(url)}" target="_blank" rel="noopener">Create GitHub issue</a>'
+    )
 
 
 def _display_name(name: str) -> str:
@@ -188,9 +232,11 @@ def _stamp(dt: datetime) -> str:
     return f'<time title="{_ago(dt)}">{local.strftime(fmt)}</time>'
 
 
-def _species_li(name: str, source: str | None, url: str) -> str:
+def _species_li(scientific: str, label: str, source: str | None, url: str) -> str:
     # Marks species counted in the window but omitted from the collage (#9); else
     # names the plate the artwork was cut from, per the style's manifest.
+    # admin.js adds the href: only the browser knows BirdNET-Go's address.
+    name = f'<a data-species="{html.escape(scientific)}" target="_blank" rel="noopener">{label}</a>'
     if source is None:
         return f'<li class="noart">{name} <small>no art</small></li>'
     plate = _display_name(source)
@@ -201,7 +247,9 @@ def _species_li(name: str, source: str | None, url: str) -> str:
 
 def species_html(species: list[tuple[str, str | None, str]], name_of: Namer) -> str:
     return (
-        "".join(_species_li(name_of.inline(name), source, url) for name, source, url in species)
+        "".join(
+            _species_li(name, name_of.inline(name), source, url) for name, source, url in species
+        )
         or '<li class="empty">none yet</li>'
     )
 
@@ -242,6 +290,19 @@ def _update(status: Status) -> str:
     return f'<span id="state">up to date</span>{_action("check", "Check")}'
 
 
+def _reboot(status: Status) -> str:
+    """The Reboot button beside when the frame started, on the Pi alone
+    (`updates.can_reboot`)."""
+    if not updates.can_reboot():
+        return ""
+    failed = (
+        f'<span class="bad">{html.escape(status.reboot_error)}</span>'
+        if status.reboot_error
+        else ""
+    )
+    return f"{_action('reboot', 'Reboot')}{failed}"
+
+
 def _auto_update(settings: Settings) -> str:
     """The auto-install toggle, shown disabled in a container: nothing in here can
     pull an image, and a switch that does nothing is worse than no switch."""
@@ -256,15 +317,23 @@ def _auto_update(settings: Settings) -> str:
     )
 
 
+NAME_KEY = (
+    "Number the birds and list their names beside or below them, like a poster. "
+    f"Shows at most {KEY_LIMIT} birds, and the list's text shrinks to fit when there are many."
+)
+
+
 def _names_field(settings: Settings, languages: list[tuple[str, str]], failure: str) -> str:
     """The names block. `failure` says why the menu holds nothing but the
     scientific name, so a detector that will not serve its locale list reads as
     one to fix rather than as all the frame can do."""
     note = f'<p class="note bad">{_fix(f"No languages: {failure}")}</p>' if failure else ""
     return (
-        f'<div class="field" id="names"><span>Species names</span>'
+        f'<div class="field" id="names"><span>Labels</span>'
         f"{_checkbox('show_names', 'Display bird names', settings.show_names)}"
         f"{note}"
+        f'<div class="sub" id="name-key"><input type="hidden" name="{CHECKBOXES}" value="name_key">'
+        f"{_checkbox('name_key', f'<span>Numbered key {_hint(NAME_KEY)}</span>', settings.name_key)}</div>"
         f'<label class="sub"><small>Language</small>'
         f"{_language_select('primary_language', languages, settings.primary_language)}</label>"
         f'<label class="sub"><small>Second language (optional)</small>'
@@ -418,11 +487,36 @@ def _hint(text: str) -> str:
     return f'<span class="hint" tabindex="0" role="img" aria-label="{note}"></span>'
 
 
-LOCK = (
-    "The web view takes the panel's shape and rotation. Turn off to give it a "
-    "shape of its own, like a 16:9 TV. The panel and the screen then show "
-    "different pages."
-)
+LOCK = "The web view takes the panel's shape and rotation"
+
+
+EDGES = "The same margin on every edge of the panel"
+
+
+def _slider(field: str, caption: str, value: int) -> str:
+    return (
+        f'<label><span><span class="caption">{caption}</span> <small>{value}%</small></span>'
+        f'<input type="range" name="{field}" min="0" max="{MARGIN_CEILING}" step="1" value="{value}">'
+        "</label>"
+    )
+
+
+def _margin_field(settings: Settings, panel: bool) -> str:
+    """One margin, or with a panel one per edge of the glass (#184)."""
+    one = f'<div id="margin-one">{_slider("margin", "All edges", settings.margin)}</div>'
+    if not panel:
+        return one
+    edges = "".join(
+        _slider(f"margin_{edge}", edge.title(), value)
+        for edge, value in zip(
+            ("top", "right", "bottom", "left"), settings.glass_margins(), strict=True
+        )
+    )
+    lock = _checkbox("margin_lock", f"<span>Uniform {_hint(EDGES)}</span>", settings.margin_lock)
+    return (
+        f'<input type="hidden" name="{CHECKBOXES}" value="margin_lock">{lock}'
+        f'<div id="margin-edges">{edges}</div>{one}'
+    )
 
 
 def _web_field(settings: Settings, panel: tuple[int, int] | None) -> str:
@@ -442,7 +536,7 @@ def _web_field(settings: Settings, panel: tuple[int, int] | None) -> str:
         lambda r: "{} ({}×{})".format(r, *replace(settings, web_resolution=r).web_size(panel)),
     )
     return (
-        f'<div class="field"><span>Resolution {_hint("Web view only")}</span>'
+        f'<div class="field"><span>Resolution</span>'
         f'<select name="web_resolution" aria-label="Resolution">{resolutions}</select>'
         f'<div class="sub{"" if panel else " off"}">{declared}{lock}</div>'
         f'<div class="sub" id="web-shape">'
@@ -462,6 +556,7 @@ def _species_field(settings: Settings) -> str:
     """
     limited = settings.species_limit != NO_LIMIT
     count = settings.species_limit if limited else DEFAULT_LIMIT
+    capped = settings.show_names and settings.name_key and not (limited and count <= KEY_LIMIT)
     return (
         f'<div class="field" id="limit">'
         f"<span>Species on the page "
@@ -475,6 +570,8 @@ def _species_field(settings: Settings) -> str:
         f"{'' if limited else ' checked'}> Show all</label>"
         f'<div class="sub" id="ranking"><small>Which ones to keep</small>'
         f"{_radios('ranking', list(RANKINGS.items()), settings.ranking)}</div>"
+        f'<p class="note" id="key-cap"{"" if capped else " hidden"}>'
+        f"The numbered key shows at most {KEY_LIMIT} birds.</p>"
         f"</div>"
     )
 
@@ -486,12 +583,24 @@ def _radio_field(
     return f'<div class="field"{tag}><span>{label}</span>{_radios(name, options, active)}</div>'
 
 
+SPOTLIGHT = "Showcase the latest heard bird in the middle."
+
+
 def _layout_field(settings: Settings) -> str:
-    """How the collage packs its birds (#47). Dimmed with the lookback for the
-    modes that draw one bird."""
+    """How the collage packs its birds (#47), and whether one takes the middle
+    (#185). Dimmed with the lookback for the modes that draw one bird."""
     hint = "\n\n".join(f"{layout.label}: {layout.blurb}" for layout in LAYOUTS.values())
     options = [(k, layout.label) for k, layout in LAYOUTS.items()]
-    return _radio_field(f"Layout {_hint(hint)}", "layout", options, settings.layout, id="layout")
+    spotlight = _checkbox(
+        "spotlight",
+        f"<span>Spotlight mode {_hint(SPOTLIGHT)}</span>",
+        settings.spotlight,
+    )
+    return (
+        f'<div class="field" id="layout"><span>Layout {_hint(hint)}</span>'
+        f"{_radios('layout', options, settings.layout)}"
+        f'<input type="hidden" name="{CHECKBOXES}" value="spotlight">{spotlight}</div>'
+    )
 
 
 def page(
@@ -512,9 +621,9 @@ def page(
     names_failure = catalog_failure()
     detector_state, detector_version = hostinfo.detector(settings.detector_url)
     try:
-        latest, rows = ctx.source.latest(), subjects(ctx)
+        latest, rows, without = ctx.source.latest(), subjects(ctx), missing(ctx)
     except Unavailable:
-        latest, rows = None, None
+        latest, rows, without = None, None, None
     windowed = modes.mode_of(settings.mode).windowed
     online, iface = hostinfo.online()
     rendered = _stamp(status.rendered_at) if status.rendered_at else "not yet"
@@ -535,6 +644,7 @@ def page(
                 "version": __version__,
                 "passwordSet": PASSWORD_SET,
                 "windowedModes": [k for k, m in MODES.items() if m.windowed],
+                "keyLimit": KEY_LIMIT,
                 "webHeights": WEB_HEIGHTS,  # so the Resolution labels follow the form
                 # Landscape, as oriented() reads it; null leaves the preview the web view's shape.
                 "panel": [max(panel_size), min(panel_size)] if detected else None,
@@ -545,8 +655,7 @@ def page(
         ),
         web_field=_web_field(settings, attached),
         rotations=_options(ROTATIONS, settings.rotation, lambda r: f"{r}° {_ASPECT[r % 180]}"),
-        margin=settings.margin,
-        margin_max=MARGIN_CEILING,
+        margin_field=_margin_field(settings, detected),
         refreshes=_refreshes(settings),
         lookback_off="" if windowed else ' class="off"',
         lookback_disabled="" if windowed else " disabled",
@@ -577,6 +686,7 @@ def page(
         online=_state(online, "online", "offline") + (f" · {iface}" if iface else ""),
         disk=hostinfo.disk_free(names_dir),
         started=_stamp(status.started_at),
+        reboot=_reboot(status),
         kiosk_size=f"{w}×{h}",
         rendered=rendered,
         latest=(
@@ -584,4 +694,6 @@ def page(
             if latest
             else ("none yet" if rows is not None else _outage(detector_state))
         ),
+        missing_hint=_hint(MISSING),
+        missing=missing_row(without) if without is not None else _outage(detector_state),
     )

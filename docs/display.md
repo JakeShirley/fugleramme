@@ -29,27 +29,6 @@ Heard nothing at all in the lookback window? The page draws a bare perch.
 
 ## Settings
 
-### Panel refresh
-
-The shortest time the panel holds a render before newly heard birds may change it. Default is **As soon as it changes**. This is a floor and not a timer, and affects all modes. If you have a busy station, you can use this to avoid constant redraws.
-
-### Resolution (web only)
-
-The resolution of the web renders. Default is **1080p**. Independent from the e-ink panel's own size (automatically identified).
-
-### Lock to panel (web only)
-
-Lock the web view to the e-ink panel's shape and rotation. Default is **on** if you have an Inky Impression connected. Turn it off and pick an **Aspect** and **Portrait** to fit a TV or a desktop as well - see [Screens](screens.md). 
-
-Without a panel there is nothing to lock to, and therefore the option is disabled.
-
-### Margin
-
-How much space between the birds and the edges, as a percentage of the short side. Default is **4%**. Raise it if your frame's passepartout covers the edge of the panel, so the birds don't end up under the cutout - see
-[cutting the passepartout](hardware.md#cutting-the-passepartout-mostly-relevant-for-full-build).
-
-The single-bird modes have a wide border, so only 8% or above affects them.
-
 ### Lookback window (collage only)
 
 How far back the collage looks, from the last 15 minutes to all time. Default is
@@ -90,7 +69,12 @@ How the birds are arranged on the page. Default is **Spiral**.
 | Spiral | Big birds in the middle, small ones around them |
 | Voids | Birds spread out to fill the whole sheet, corners included |
 
-### Species names
+**Spotlight mode** places the latest heard bird in the middle, with the rest
+packed around it. Default is **off**.
+
+![A large Common Kingfisher in the middle of the collage](assets/spotlight.jpg)
+
+### Labels
 
 **Show species names** turns the labels on and off, same as **B** on the panel.
 
@@ -100,3 +84,15 @@ downloaded dictionaries are offered - on a fresh install that may be the
 scientific name alone.
 
 **Typeface** and **size** apply to every label.
+
+**Numbered key** (collage only) gives each bird a number and lists the names to the right in landscape, or below them in portrait, like a poster. (40 birds max, or whatever **Species on the page** is set to)
+
+A bird the station has never heard before gets an asterisk after its name for its first 24 hours.
+
+| No names | Names next to the birds | Two languages |
+| :---: | :---: | :---: |
+| ![Garden birds with no names](assets/names-off.jpg) | ![The same birds with their scientific names underneath](assets/names-beside.jpg) | ![The same birds with English and scientific names underneath](assets/names-beside-two.jpg) |
+
+| Numbered key | Numbered key, two languages | Numbered key, tall page |
+| :---: | :---: | :---: |
+| ![The same birds numbered, with the names listed on the right](assets/names-key.jpg) | ![The same birds numbered, with English and scientific names listed on the right](assets/names-key-two.jpg) | ![The same birds numbered, with the names listed below](assets/names-key-portrait.jpg) |

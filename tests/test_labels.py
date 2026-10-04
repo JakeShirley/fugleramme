@@ -13,7 +13,16 @@ from PIL import Image, ImageFont
 from fugleramme.render import collage, fonts
 from fugleramme.render.collage import _Sprite, _with_label, render_collage
 from fugleramme.render.packing import _probes, spiral
-from fugleramme.render.page import INK, PANEL_INK, label_px, stamp, text_mask
+from fugleramme.render.page import (
+    INK,
+    NEW,
+    PANEL_INK,
+    Edges,
+    figures_mask,
+    label_px,
+    stamp,
+    text_mask,
+)
 from fugleramme.render.paper import PANEL_PAPER
 
 
@@ -199,9 +208,11 @@ def test_the_same_page_packs_identically_at_every_output_size(tmp_path, crowded)
     assert packed.count(packed[0]) == 4
 
 
-def test_the_panel_and_the_kiosk_share_one_pack(tmp_path, crowded):
+@pytest.mark.parametrize("name_key", [False, True])
+def test_the_panel_and_the_kiosk_share_one_pack(tmp_path, crowded, name_key):
     """Packing is the whole cost of a render and both outputs pack the same, so
-    whichever draws first pays for both."""
+    whichever draws first pays for both. A key sized in output pixels used to
+    leave each output its own box for the birds, and its own layout."""
     entries = crowded(8)
     calls = 0
     real = collage._layout
@@ -213,24 +224,28 @@ def test_the_panel_and_the_kiosk_share_one_pack(tmp_path, crowded):
 
     with patch.object(collage, "_layout", spy):
         for size, textured in (((1600, 1200), False), ((1920, 1440), True), ((2880, 2160), True)):
-            render_collage(entries, size, show_names=True, textured=textured)
+            render_collage(entries, size, textured=textured, name_key=name_key)
     assert calls == 1
 
     # A different page still packs: the key is the species and their artwork.
     with patch.object(collage, "_layout", spy):
-        render_collage(crowded(6), (1600, 1200), show_names=True, textured=False)
+        render_collage(crowded(6), (1600, 1200), textured=False, name_key=name_key)
     assert calls == 2
 
 
-@pytest.mark.parametrize("margin", [collage.DEFAULT_MARGIN, 0.15])
-def test_nothing_is_drawn_against_the_page_edge(crowded, margin):
-    page = render_collage(crowded(12), (700, 500), show_names=True, textured=False, margin=margin)
-    px = round(min(page.size) * margin)
+@pytest.mark.parametrize("size", [(700, 500), (500, 700)])
+@pytest.mark.parametrize("name_key", [False, True])
+@pytest.mark.parametrize(
+    "margin",
+    [Edges.even(collage.DEFAULT_MARGIN), Edges.even(0.15), Edges(0.02, 0.2, 0.1, 0.05)],
+)
+def test_nothing_is_drawn_against_the_page_edge(crowded, margin, name_key, size):
+    page = render_collage(
+        crowded(12), size, show_names=True, textured=False, margin=margin, name_key=name_key
+    )
+    x0, y0, x1, y1 = margin.window(page.size)
     band = np.asarray(page).copy()
-    band[px:-px, px:-px] = PANEL_PAPER
-    assert (band == PANEL_PAPER).all()
-    band = np.asarray(page).copy()
-    band[px:-px, px:-px] = PANEL_PAPER
+    band[y0:y1, x0:x1] = PANEL_PAPER
     assert (band == PANEL_PAPER).all()
 
 
@@ -296,3 +311,80 @@ def test_a_probe_is_a_real_row_of_the_sprite():
 
 def test_a_sprite_with_no_opaque_pixels_probes_nothing():
     assert _probes(np.zeros((20, 20), dtype=bool)) == []
+
+
+@pytest.mark.parametrize("box", [(0, 0, 1600, 1200), (0, 0, 1200, 1600)])
+def test_the_key_leaves_most_of_the_page_to_the_birds(box):
+    texts = [[f"Genus species{n}"] for n in range(collage.KEY_LIMIT)]
+    key, (_, _, x1, y1) = collage._fit_key(texts, fonts.DEFAULT_FONT, 60, box)
+    kx0, ky0, kx1, ky1 = key.area
+    taken, room = (ky1 - ky0, box[3]) if key.below else (kx1 - kx0, box[2])
+    assert taken <= room * collage._KEY_SHARE
+    assert (y1 < ky0) if key.below else (x1 < kx0)  # birds and key never share paper
+
+
+def test_a_second_language_stacks_rather_than_widening_the_key():
+    """Joined onto one line, two names made one column too wide for its page."""
+    one = [["Common Blackbird"]] * 6
+    two = [["Common Blackbird", "(Turdus merula)"]] * 6
+    box = (0, 0, 1200, 1600)
+    assert collage._fit_key(two, fonts.DEFAULT_FONT, 30, box)[0].col_w == (
+        collage._fit_key(one, fonts.DEFAULT_FONT, 30, box)[0].col_w
+    )
+
+
+def test_the_birds_are_numbered_in_reading_order():
+    at = [(500, 20), (20, 30), (300, 520), (40, 500)]  # two rows, each out of order
+    placed = [collage._Placed(i, 10, xy, xy, 10) for i, xy in enumerate(at)]
+    assert [p.index for p in collage._reading_order(placed, 600, 600)] == [1, 0, 3, 2]
+    assert [p.index for p in collage._numbered(placed, 600, 600, None)] == [1, 0, 3, 2]
+    # A spotlit bird is number 1, wherever it sits; the rest keep reading order.
+    assert [p.index for p in collage._numbered(placed, 600, 600, 2)] == [2, 1, 0, 3]
+
+
+@pytest.mark.parametrize("key", sorted(fonts.FONTS))
+def test_a_bird_reserves_room_for_any_number(key):
+    """Old-style figures rise and hang by the digit: a box sized off "88" let a 7 into the margin."""
+    for px in (11, 17, 40):
+        font = fonts.load(key, px)
+        room = collage._figures_box(collage.KEY_LIMIT)("", font, False)
+        for n in range(1, collage.KEY_LIMIT + 1):
+            drawn = figures_mask(str(n), font, True)
+            assert drawn.width <= room.width and drawn.height == room.height
+
+
+def test_a_mark_hangs_off_the_name_without_moving_it():
+    """As much room on the left as the mark takes on the right, so the name
+    stays centred under its bird."""
+    font = fonts.load(fonts.DEFAULT_FONT, 40)
+    plain = np.asarray(text_mask("Erithacus rubecula", font, False)) > 0
+    marked = np.asarray(text_mask("Erithacus rubecula" + NEW, font, False)) > 0
+    side = (marked.shape[1] - plain.shape[1]) // 2
+    assert side > 0 and marked.shape[1] == plain.shape[1] + 2 * side
+    assert not marked[:, :side].any() and marked[:, -side:].any()
+    tops = range(marked.shape[0] - plain.shape[0] + 1)
+    assert any(
+        (marked[t : t + plain.shape[0], side : side + plain.shape[1]] >= plain).all() for t in tops
+    )
+
+
+def test_a_short_first_line_keeps_its_mark_inside_the_label():
+    """Centred on the longer second line, the first has paper after it."""
+    font = fonts.load(fonts.DEFAULT_FONT, 40)
+    text = "Rødstrupe\n(Erithacus rubecula)"
+    plain, marked = (
+        text_mask(text, font, False),
+        text_mask(text.replace("\n", NEW + "\n"), font, False),
+    )
+    assert marked.width == plain.width
+    assert (np.asarray(marked) > 0).sum() > (np.asarray(plain) > 0).sum()
+
+
+@pytest.mark.parametrize("key", sorted(fonts.FONTS))
+@pytest.mark.parametrize("text", ["Turdus", "anser", "Rødstrupe\n(Erithacus rubecula)"])
+def test_a_mark_never_runs_off_its_label(key, text):
+    """Set larger than the text, it can reach past the lettering: the label holds it."""
+    font = fonts.load(key, 24)
+    first, *rest = text.split("\n")
+    ink = np.asarray(text_mask("\n".join([first + NEW, *rest]), font, False)) > 0
+    assert not (ink[0].any() or ink[-1].any() or ink[:, 0].any() or ink[:, -1].any())

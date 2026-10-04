@@ -99,6 +99,12 @@ class Settings:
     refresh_minutes: int = 0
     # The collage's own default, as a percent.
     margin: int = round(DEFAULT_MARGIN * 100)
+    # The panel's edges while unlocked, on the glass unrotated. None follows `margin`.
+    margin_lock: bool = True
+    margin_top: int | None = None
+    margin_right: int | None = None
+    margin_bottom: int | None = None
+    margin_left: int | None = None
     # Which birds make the page (#53); NO_LIMIT is every species the window holds.
     species_limit: int = DEFAULT_LIMIT
     ranking: str = DEFAULT_RANKING
@@ -107,8 +113,12 @@ class Settings:
     style: str = ""
     # How the collage packs its birds; a plate has one bird and ignores it.
     layout: str = DEFAULT_LAYOUT
+    # The collage with the latest bird drawn large in the middle (#185).
+    spotlight: bool = False
     auto_update: bool = False
     show_names: bool = True
+    # Numbers on the birds and the names in a key beside them, poster style.
+    name_key: bool = False
     # Species-name languages: BirdNET-Go dictionary locales, resolved
     # against its API at render time like `sources`.
     primary_language: str = SCIENTIFIC
@@ -144,6 +154,23 @@ class Settings:
         long, short = max(resolution), min(resolution)
         return (short, long) if self.rotation % 180 else (long, short)
 
+    def glass_margins(self) -> tuple[int, int, int, int]:
+        """The panel's margins on the glass, unrotated: top, right, bottom, left."""
+        if self.margin_lock:
+            return (self.margin,) * 4
+        edges = (self.margin_top, self.margin_right, self.margin_bottom, self.margin_left)
+        top, right, bottom, left = (self.margin if e is None else e for e in edges)
+        return top, right, bottom, left
+
+    def margins(self, panel: bool) -> tuple[int, int, int, int]:
+        """Margins as the page hangs, clockwise from the top; only the panel's has edges."""
+        if not panel:
+            return (self.margin,) * 4
+        glass = self.glass_margins()
+        turns = self.rotation // 90  # counter-clockwise: the glass's left comes to the top
+        top, right, bottom, left = (glass[(i - turns) % 4] for i in range(4))
+        return top, right, bottom, left
+
     def web_size(self, panel: tuple[int, int] | None) -> tuple[int, int]:
         """Kiosk render size at the selected height. Locked, the panel scaled and
         turned; unlocked, or with no panel (None) to follow, its own aspect."""
@@ -159,6 +186,14 @@ class Settings:
 def _as_int(value, default: int, lo: int, hi: int) -> int:
     try:
         return max(lo, min(hi, int(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_edge(value, default: int | None) -> int | None:
+    """Like `_as_int`, but the default may be None."""
+    try:
+        return max(0, min(MARGIN_CEILING, int(value)))
     except (TypeError, ValueError):
         return default
 
@@ -257,12 +292,19 @@ def _coerce(raw: dict, base: Settings | None = None) -> Settings:
         lookback_hours=_as_hours(raw.get("lookback_hours"), d.lookback_hours),
         refresh_minutes=_as_int(raw.get("refresh_minutes"), d.refresh_minutes, 0, 24 * 60),
         margin=_as_int(raw.get("margin"), d.margin, 0, MARGIN_CEILING),
+        margin_lock=_as_bool(raw.get("margin_lock"), d.margin_lock),
+        margin_top=_as_edge(raw.get("margin_top"), d.margin_top),
+        margin_right=_as_edge(raw.get("margin_right"), d.margin_right),
+        margin_bottom=_as_edge(raw.get("margin_bottom"), d.margin_bottom),
+        margin_left=_as_edge(raw.get("margin_left"), d.margin_left),
         species_limit=_as_int(raw.get("species_limit"), d.species_limit, NO_LIMIT, LIMIT_CEILING),
         ranking=_one_of(str(raw.get("ranking", d.ranking)), RANKINGS, d.ranking),
         style=_style(raw, d.style),
         layout=_one_of(str(raw.get("layout", d.layout)), LAYOUTS, d.layout),
+        spotlight=_as_bool(raw.get("spotlight"), d.spotlight),
         auto_update=_as_bool(raw.get("auto_update"), d.auto_update),
         show_names=_as_bool(raw.get("show_names"), d.show_names),
+        name_key=_as_bool(raw.get("name_key"), d.name_key),
         # A primary language is required: an empty pick means the scientific name.
         primary_language=_language(raw.get("primary_language"), d.primary_language) or SCIENTIFIC,
         secondary_language=_language(raw.get("secondary_language"), d.secondary_language),

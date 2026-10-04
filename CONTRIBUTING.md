@@ -8,6 +8,8 @@ This is a one-person project, but issues and PRs are very welcome - fixes, docs 
 | Something is broken | **A [bug report](https://github.com/arnegiacomo/fugleramme/issues/new/choose)** |
 | An idea, a feature request, a setup question, showcase or anything else | **[Discussions](https://github.com/arnegiacomo/fugleramme/discussions)** |
 
+Never opened a PR before? [First Contributions](https://github.com/firstcontributions/first-contributions) walks through it step by step, and the [good first issues](https://github.com/arnegiacomo/fugleramme/labels/good%20first%20issue) are a good place to start. I'll add a few from time to time. Want to take one on? Comment on it first, so nobody else picks the same issue as you.
+
 The one thing worth asking about first is a big feature or change - start it in Discussions so you don't spend a weekend on something that's already half-designed or deliberately out of scope.
 
 ## Running it without a Pi
@@ -59,18 +61,18 @@ feat: #23 add a mic-less display mode
 docs: fix the passepartout measurements
 ```
 
-Releases are cut straight from these:
+The type decides what the next release bumps:
 
-| Type | Release kind |
+| Type | Bump |
 | --- | --- |
 | `feat` | minor |
 | `fix`, `perf` | patch |
-| anything else (e.g. `docs`) | no release |
+| anything else (e.g. `docs`) | none |
 
 PRs are squashed, so the title is the message that counts.
 
 **Artwork is `chore`, not `fix`** - `chore(assets): add Sturnus unicolor`. A new
-bird isn't a new version of the software, so it is added to the next release rather than cutting one of its own.
+bird isn't a change to the software, so it rides along in the next release without bumping the version.
 
 ## Artwork
 

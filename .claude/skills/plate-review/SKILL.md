@@ -35,8 +35,9 @@ paper code.
    - `paper_clean` (default 241), `seal`, `regrow`: see Faults.
    `plate.py cut spec.json` writes `cut.png` and `check.jpg` on a loud ground.
 4. **Finish.** `finish.py cut.png final.png` crops, downscales to 1200 px in floating point
-   and sets the soft edge to the exact halo tone. Hand `final.png` to `tools/add_bird.py`,
-   never `cut.png`.
+   and sets the soft edge to the exact halo tone. A faded scan's bird is deepened to match
+   the shipped plates; it prints how much (`graded 0%` leaves the cut alone). Hand
+   `final.png` to `tools/add_bird.py`, never `cut.png`.
 5. **Add.** `tools/add_bird.py final.png --style classic --key <key> --source <key> --url <plate page> --preview <png>`.
    Take the key from `fugleramme.names.normalize`, not from the BirdNET label. To replace a
    plate, remove the file and add again: the tool gives the first free name. If the manifest
@@ -49,15 +50,11 @@ paper code.
    Mode 3: red is flat paper where the bird should be; magenta is the dotted ring. Red between
    legs and a perch is a declared gap and fine. On a bird cut from painted ground, red along
    the traced edge is a false alarm.
-   Mode 4 is computed in the browser from two images and nothing else: the scan, and the
-   shipped plate as RGBA with nothing composited under it. Two reads per pixel - is the scan
-   darker than page tone, is the plate opaque and not the halo's own paper tone - give four
-   states, and every pixel is in exactly one. Blue is drawn ink the plate no longer shows:
-   grass, a branch, a neighbour, or anything the halo painted over. Red is a pixel the plate
-   shows that the scan never drew on: a hole, or a declared gap between legs and a perch.
-   Plain is the bird as it prints, grey is page on both sides. The one threshold is how dark
-   a scan pixel must count as drawn on, and it is a slider: pale plumage sits near page tone
-   and speckles red as you raise it, so move the slider before calling red a fault.
+   Mode 4 compares the scan with the shipped plate's alpha. Blue is drawn ink the plate no
+   longer shows: grass, a branch, a neighbour, or anything the halo painted over. Red is a
+   pixel the plate shows that the scan never drew on: a hole, or a declared gap. The slider
+   sets how dark counts as drawn; pale plumage speckles red as you raise it, so move the
+   slider before calling red a fault.
    Mode 5 is that same RGBA plate on `check.jpg`'s blue ground: the halo shows as a band,
    so its width and evenness are read there.
 7. **Fix and rebuild** until the user passes every plate. Verdicts live in the browser and
@@ -95,14 +92,16 @@ straight edge reads as a cutting defect and gets sent back.
 ## Delegating a cut
 
 Per the user's standing preference, cutting agents run on the cheapest model and the parent
-reviews. Tell a cutting agent to **report the bird's pixel count** and **attach the full
-preview** - those are what let the parent catch a bad cut without redoing the work. Tell it to
-read the image rather than hunt for pixel thresholds; agents burn long runs that way.
+reviews; a hard cut (painted ground, outline tracing) goes to a mid-tier model. Tell a cutting
+agent to **report the bird's pixel count** and **save a compare image** of its `final.png` beside
+the scan on a solid ground. Its own report describes what it meant to do, not what it made, so
+look at every compare before relaying anything. Tell it to read the image rather than hunt for
+pixel thresholds; agents burn long runs that way.
 
 ## Repo rules that bite
 
-Artwork commits are `chore(assets): #ref ...`, subject only, no AI attribution. Never commit
-or push unless the user asks, and never post to GitHub - the user posts their own comments.
-Plates are single birds with a natural or rounded branch end. Disclose any retouching or
-colour correction in the PR, and any occlusion. PR descriptions stay short, with a preview of
-every bird.
+Keep the whole drawn vignette: every bird on the plate (a second species too), its plants and
+its painted background. Only the page, engraver signatures, plate numbers and sex marks go,
+unless the user asks to drop a busy background. A cut branch ends natural or rounded. Disclose
+any retouching or colour correction in the PR, and any occlusion. PR descriptions stay short,
+with a preview of every bird.
