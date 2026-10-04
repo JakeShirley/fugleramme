@@ -328,6 +328,9 @@ def test_the_birds_are_numbered_in_reading_order():
     at = [(500, 20), (20, 30), (300, 520), (40, 500)]  # two rows, each out of order
     placed = [collage._Placed(i, 10, xy, xy, 10) for i, xy in enumerate(at)]
     assert [p.index for p in collage._reading_order(placed, 600, 600)] == [1, 0, 3, 2]
+    assert [p.index for p in collage._numbered(placed, 600, 600, None)] == [1, 0, 3, 2]
+    # A spotlit bird is number 1, wherever it sits; the rest keep reading order.
+    assert [p.index for p in collage._numbered(placed, 600, 600, 2)] == [2, 1, 0, 3]
 
 
 @pytest.mark.parametrize("key", sorted(fonts.FONTS))

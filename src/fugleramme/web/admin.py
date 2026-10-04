@@ -570,12 +570,24 @@ def _radio_field(
     return f'<div class="field"{tag}><span>{label}</span>{_radios(name, options, active)}</div>'
 
 
+SPOTLIGHT = "Showcase the latest heard bird in the middle."
+
+
 def _layout_field(settings: Settings) -> str:
-    """How the collage packs its birds (#47). Dimmed with the lookback for the
-    modes that draw one bird."""
+    """How the collage packs its birds (#47), and whether one takes the middle
+    (#185). Dimmed with the lookback for the modes that draw one bird."""
     hint = "\n\n".join(f"{layout.label}: {layout.blurb}" for layout in LAYOUTS.values())
     options = [(k, layout.label) for k, layout in LAYOUTS.items()]
-    return _radio_field(f"Layout {_hint(hint)}", "layout", options, settings.layout, id="layout")
+    spotlight = _checkbox(
+        "spotlight",
+        f"<span>Spotlight mode {_hint(SPOTLIGHT)}</span>",
+        settings.spotlight,
+    )
+    return (
+        f'<div class="field" id="layout"><span>Layout {_hint(hint)}</span>'
+        f"{_radios('layout', options, settings.layout)}"
+        f'<input type="hidden" name="{CHECKBOXES}" value="spotlight">{spotlight}</div>'
+    )
 
 
 def page(

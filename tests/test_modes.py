@@ -259,3 +259,25 @@ def test_the_numbered_key_moves_only_the_collage(tmp_path, images, source):
             for on in (False, True)
         ]
         assert (keys[0] != keys[1]) is moves
+
+
+def test_the_spotlight_puts_the_latest_bird_on_a_limited_page(tmp_path, images, source):
+    detections = source(rows=[_row(3, TIT, 0), _row(2, BLACKBIRD, 1), _row(1, BLACKBIRD, 2)])
+    for on, expected in ((False, BLACKBIRD), (True, TIT)):
+        ctx = _ctx(detections, images, tmp_path, "collage", species_limit=1, spotlight=on)
+        assert modes._selected(ctx) == [expected]
+
+
+def test_the_spotlight_moves_only_when_a_different_species_calls(tmp_path, images, detector):
+    rows = [_row(2, TIT, 1), _row(1, BLACKBIRD, 2)]
+    url, _httpd = detector(rows=rows)
+    detections = ApiSource(url)
+
+    def key():
+        return modes.state_key(_ctx(detections, images, tmp_path, "collage", spotlight=True))
+
+    before = key()
+    _heard(detections, rows, _row(3, TIT, 0))
+    assert key() == before
+    _heard(detections, rows, _row(4, BLACKBIRD, 0))
+    assert key() != before  # the same two birds, a different one in the middle

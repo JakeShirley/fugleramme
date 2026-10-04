@@ -60,6 +60,7 @@ class Context:
     species_limit: int
     ranking: str
     layout: str
+    spotlight: bool
     margin: Edges  # of the short side; the settings are percents
     textured: bool = True
 
@@ -100,6 +101,7 @@ def context(
         species_limit=_key_limit(settings.species_limit) if keyed else settings.species_limit,
         ranking=settings.ranking,
         layout=settings.layout,
+        spotlight=settings.spotlight,
         margin=Edges(*(m / 100 for m in settings.margins(panel))),
         textured=textured,
     )
@@ -138,6 +140,15 @@ def _plate(ctx: Context, name: str | None, note: str = "", art: Path | None = No
     )
 
 
+def _spotlit(ctx: Context) -> str | None:
+    """The bird in the collage's middle: the species of the latest call, as
+    the Latest bird page has it."""
+    if not ctx.spotlight:
+        return None
+    holder = _holder(ctx)
+    return holder[0] if holder else None
+
+
 def _selected(ctx: Context, keys: set[str] | None = None) -> list[str]:
     """The species on the collage, in name order. This runs on every poll, so a
     caller that already listed the style hands `keys` over."""
@@ -149,6 +160,7 @@ def _selected(ctx: Context, keys: set[str] | None = None) -> list[str]:
         ctx.species_limit,
         ctx.ranking,
         keys,
+        _spotlit(ctx),
     )
 
 
@@ -156,10 +168,16 @@ def _collage_key(ctx: Context) -> tuple:
     # The page's species, not the window's: under a limit two birds can trade
     # places across it while the set of species heard sits still.
     species = tuple(_selected(ctx))
-    return (species, day_ordinal() if not species else None)
+    spotlit = _spotlit(ctx)
+    return (
+        species,
+        spotlit if spotlit in species else None,
+        day_ordinal() if not species else None,
+    )
 
 
 def _collage(ctx: Context) -> Image.Image:
+    spotlit = _spotlit(ctx)
     return render_collage(
         gather_entries(
             ctx.source,
@@ -169,6 +187,7 @@ def _collage(ctx: Context) -> Image.Image:
             ctx.lookback_hours,
             ctx.species_limit,
             ctx.ranking,
+            spotlit,
         ),
         ctx.resolution,
         ctx.show_names,
@@ -180,6 +199,7 @@ def _collage(ctx: Context) -> Image.Image:
         ctx.layout,
         ctx.margin,
         ctx.name_key,
+        spotlit,
     )
 
 
