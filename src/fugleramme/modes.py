@@ -18,7 +18,7 @@ import io
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -28,7 +28,7 @@ from .languages import Namer
 from .names import drawable_keys, image_for, normalize, perches_for, resolve
 from .picks import Picks
 from .render.collage import KEY_LIMIT, NO_LIMIT, gather_entries, render_collage, selected_species
-from .render.page import Edges, day_ordinal
+from .render.page import NEW, Edges, day_ordinal
 from .render.plate import effective_margin, render_plate
 from .source import Source, Species
 
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 # the run the holder is on. A species with no plate cannot hold the page, so the
 # latest one that can does instead.
 _RECENT_SCAN = 500
+NEW_HOURS = 24  # how long a bird first heard counts as new, for its mark
 
 
 @dataclass(frozen=True)
@@ -123,12 +124,34 @@ class Mode:
     windowed: bool = False
 
 
+def _newcomers(ctx: Context) -> frozenset[str]:
+    """Species first heard in the last `NEW_HOURS`, while names are on to mark."""
+    if not ctx.show_names:
+        return frozenset()
+    since = datetime.now(UTC) - timedelta(hours=NEW_HOURS)
+    return frozenset(s.scientific_name for s in ctx.source.life_list() if s.first_seen >= since)
+
+
+def _labeller(ctx: Context) -> Callable[[str], str]:
+    """Scientific name -> label, a newcomer's first line ending in its mark."""
+    new = _newcomers(ctx)
+
+    def label(name: str) -> str:
+        text = ctx.namer.label(name)
+        if name not in new:
+            return text
+        first, *rest = text.split("\n")
+        return "\n".join([first + NEW, *rest])
+
+    return label
+
+
 def _plate(ctx: Context, name: str | None, note: str = "", art: Path | None = None) -> Image.Image:
     if name and art is None:
         art = image_for(name, ctx.images_dir, ctx.style, ctx.picks)
     return render_plate(
         art,
-        ctx.namer.label(name) if name else "",
+        _labeller(ctx)(name) if name else "",
         note,
         ctx.resolution,
         ctx.show_names,
@@ -194,7 +217,7 @@ def _collage(ctx: Context) -> Image.Image:
         ctx.textured,
         ctx.font_key,
         ctx.label_size,
-        ctx.namer.label,
+        _labeller(ctx),
         ctx.perches(),
         ctx.layout,
         ctx.margin,
@@ -315,8 +338,15 @@ def state_key(ctx: Context) -> tuple:
         # The plate clamps to its own margin, so a nudge under it must not repaint.
         ctx.margin if mode.windowed else effective_margin(ctx.margin),
         ctx.namer.key,
+        _marked(ctx),
         mode.key(ctx),
     )
+
+
+def _marked(ctx: Context) -> tuple[str, ...]:
+    """The page's newcomers: a mark dropping off after a day repaints it."""
+    new = _newcomers(ctx)
+    return tuple(sorted(new & set(subjects(ctx)))) if new else ()
 
 
 def token(key: tuple) -> str:

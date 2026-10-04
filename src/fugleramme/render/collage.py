@@ -42,14 +42,17 @@ from ..source import Source
 from . import fonts, packing
 from .page import (
     MIN_LABEL_PX,
+    NEW,
     NO_MARGIN,
     Edges,
     blank,
     day_ordinal,
+    draw_mark,
     draw_perch,
     figures_mask,
     flatten,
     label_px,
+    mark_room,
     stamp,
     text_mask,
     trim,
@@ -611,7 +614,7 @@ def _fit_key(
         num_w = math.ceil(font.getlength(f"{len(texts)}."))
         space = round(px * 0.4)
         gutter = round(px * 1.2)
-        widest = max(font.getlength(part) for t in texts for part in t)
+        widest = max(_line_width(part, font) for t in texts for part in t)
         col_w = num_w + space + math.ceil(widest) + gutter
         # The last entry ends at its descenders, not its leading.
         last = (depth - 1) * line + sum(font.getmetrics())
@@ -630,6 +633,12 @@ def _fit_key(
     else:
         area, birds = (x1 - kw, y0, x1, y1), (x0, y0, x1 - kw - gutter, y1)
     return _Key(px, rows, line, entry, num_w, space, col_w, below, area), birds
+
+
+def _line_width(line: str, font: ImageFont.FreeTypeFont) -> float:
+    """A key line's width, its mark included."""
+    text = line.removesuffix(NEW)
+    return font.getlength(text) + (mark_room(font) if text != line else 0)
 
 
 def _reading_order(placed: Sequence[_Placed], width: int, height: int) -> list[_Placed]:
@@ -721,7 +730,10 @@ def _draw_keyed(
         draw.text((x, y), f"{n + 1}.", font=font, fill=255, anchor="rs")
         for k, part in enumerate(texts[p.index]):
             at = (x + round(key.space * scale), y + round(k * key.line * scale))
-            draw.text(at, part, font=font, fill=255, anchor="ls")
+            line = part.removesuffix(NEW)
+            draw.text(at, line, font=font, fill=255, anchor="ls")
+            if line != part:
+                draw_mark(mask, at[0] + font.getlength(line), at[1], font)
     mask = mask if textured else flatten(mask)
     # Anchored by its ink to the page edge: the metrics miss the italic's overhang.
     ink = mask.crop(mask.getbbox())

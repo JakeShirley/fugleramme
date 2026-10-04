@@ -87,6 +87,8 @@ scientific name alone.
 
 **Numbered key** (collage only) gives each bird a number and lists the names to the right in landscape, or below them in portrait, like a poster. (40 birds max, or whatever **Species on the page** is set to)
 
+A bird the station has never heard before gets an asterisk after its name for its first 24 hours.
+
 | No names | Names next to the birds | Two languages |
 | :---: | :---: | :---: |
 | ![Garden birds with no names](assets/names-off.jpg) | ![The same birds with their scientific names underneath](assets/names-beside.jpg) | ![The same birds with English and scientific names underneath](assets/names-beside-two.jpg) |
