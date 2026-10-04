@@ -60,6 +60,12 @@ Public domain (PD-old-70-expired; Keulemans died 1912); the *Onze vogels* scans 
 by the Biodiversity Heritage Library are additionally offered under CC BY 2.0.
 Manifest key: `keulemans`.
 
+**Grönvold** - plates by **Henrik Grönvold** (1858-1940) for *The Birds of Australia* by
+**Gregory M. Mathews**, vol. 12 (1925-1927), Museums Victoria scans via the
+[Biodiversity Heritage Library](https://www.biodiversitylibrary.org/bibliography/126732) and the
+[Internet Archive](https://archive.org/details/birdsaustraliaxiimath).
+Public domain (PD-old-70-expired; Grönvold died 1940). Manifest key: `gronvold`.
+
 **Morris** - *British Game Birds and Wildfowl* by **Beverley R. Morris**
 (1855), Biodiversity Heritage Library scans from the Commons category
 [British game birds and wildfowl](https://commons.wikimedia.org/wiki/Category:British_game_birds_and_wildfowl).
