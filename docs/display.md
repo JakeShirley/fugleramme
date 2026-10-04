@@ -74,7 +74,7 @@ packed around it. Default is **off**.
 
 ![A large Common Kingfisher in the middle of the collage](assets/spotlight.jpg)
 
-### Species names
+### Labels
 
 **Show species names** turns the labels on and off, same as **B** on the panel.
 
