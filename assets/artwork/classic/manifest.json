@@ -1527,6 +1527,10 @@
     "source": "audubon",
     "url": "https://media.audubon.org/boa_illustration/plate-102-blue-jay.jpg"
   },
+  "birds/cyanocitta-stelleri-2.webp": {
+    "source": "hines",
+    "url": "https://commons.wikimedia.org/wiki/File:Cyanocitta_stelleriFJ03P04CA.JPG"
+  },
   "birds/cyanocitta-stelleri.webp": {
     "source": "swainson",
     "url": "https://archive.org/download/faunaborealiamer22rich/page/n430.jpg"
