@@ -225,6 +225,7 @@ const caption = document.querySelector(".rendering");
 const captionHTML = caption.innerHTML;
 const form = document.querySelector("form.settings");
 let shown = null, seq = 0, timer = null;
+let page = null;  // the kiosk's token: new birds move the preview too
 const queueRender = () => {
   clearTimeout(timer);  // debounced: a render is expensive on the Pi
   timer = setTimeout(loadPreview, 500);
@@ -253,7 +254,8 @@ function loadPreview() {
     if (id !== seq) return;
     caption.textContent = "Preview unavailable";
   };
-  next.src = "/preview.png?" + query;
+  // The token busts the browser's in-page image cache, which ignores no-cache.
+  next.src = "/preview.png?" + query + (page ? "&page=" + page : "");
   loadSpecies(query, id);
 }
 
@@ -413,4 +415,17 @@ window.addEventListener("beforeunload", (e) => {
 });
 
 loadPreview();
+(async function follow() {
+  try {
+    const state = await (await fetch("/state", {cache: "no-store"})).json();
+    const moved = page !== null && state.token !== page;
+    page = state.token;
+    if (!moved) return;
+    shown = null;  // the same form, a different page
+    loadPreview();
+  } catch (e) {  // a missed poll is caught by the next
+  } finally {
+    setTimeout(follow, 5000);
+  }
+})();
 if (scrolled !== null) window.scrollTo(0, Number(scrolled));
