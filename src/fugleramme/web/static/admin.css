@@ -66,10 +66,10 @@ dl.status { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem;
 dl.status dt { color: #666; position: relative; }  /* the Without art hint's bubble hangs off it */
 dl.status dd { margin: 0; }
 dl.status dd span { display: inline; font-weight: inherit; margin: 0; }
-dl.status dd.update { display: flex; align-items: center; gap: 0.5rem; }
+dl.status dd.update, dl.status dd.action { display: flex; align-items: center; gap: 0.5rem; }
 dl.status .missing { align-self: center; }  /* the Copy button makes the row taller */
 dl.status dd.missing { display: flex; align-items: center; gap: 0.3rem; }
-dl.status dd.update button { margin: 0; }
+dl.status dd.update button, dl.status dd.action button { margin: 0; }
 time { border-bottom: 1px dotted #bbb; cursor: help; }
 /* White, not the panel's own #f4f2ee, or the box vanishes into it. `user-select:
    all` takes the whole line in one click - plain http has no clipboard API. */

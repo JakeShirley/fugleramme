@@ -290,6 +290,19 @@ def _update(status: Status) -> str:
     return f'<span id="state">up to date</span>{_action("check", "Check")}'
 
 
+def _reboot(status: Status) -> str:
+    """The Reboot button beside when the frame started, on the Pi alone
+    (`updates.can_reboot`)."""
+    if not updates.can_reboot():
+        return ""
+    failed = (
+        f'<span class="bad">{html.escape(status.reboot_error)}</span>'
+        if status.reboot_error
+        else ""
+    )
+    return f"{_action('reboot', 'Reboot')}{failed}"
+
+
 def _auto_update(settings: Settings) -> str:
     """The auto-install toggle, shown disabled in a container: nothing in here can
     pull an image, and a switch that does nothing is worse than no switch."""
@@ -673,6 +686,7 @@ def page(
         online=_state(online, "online", "offline") + (f" · {iface}" if iface else ""),
         disk=hostinfo.disk_free(names_dir),
         started=_stamp(status.started_at),
+        reboot=_reboot(status),
         kiosk_size=f"{w}×{h}",
         rendered=rendered,
         latest=(

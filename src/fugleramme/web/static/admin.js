@@ -414,6 +414,10 @@ window.addEventListener("beforeunload", (e) => {
   e.returnValue = "";
 });
 
+document.querySelector("form.reboot")?.addEventListener("submit", (e) => {
+  if (!confirm("Are you sure you want to reboot?")) e.preventDefault();
+});
+
 loadPreview();
 (async function follow() {
   try {
